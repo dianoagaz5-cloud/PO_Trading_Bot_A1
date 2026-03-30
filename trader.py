@@ -202,8 +202,7 @@ class PocketOptionTrader:
 
         except Exception as e:
             logger.error(f"Login failed: {e}")
-            screenshot = await self.page.screenshot()
-            await self._notify(f"❌ Connexion PO échouée: {e}")
+            await self._notify(f"⚠️ Connexion PO échouée: `{str(e)[:100]}`\nLe bot continue — trading désactivé.")
             return False
 
     async def _set_account_mode(self, mode: str):
