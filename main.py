@@ -54,18 +54,22 @@ async def main():
 
     # ── Login PO en arrière-plan (ne bloque plus le démarrage) ───────────────
     async def init_trader():
-        logger.info("Démarrage du navigateur Playwright...")
-        await trader.start()
-        logger.info("Connexion à Pocket Option...")
-        login_ok = await trader.login()
-        startup_msg = (
-            "🤖 *Bot démarré!*\n\n"
-            f"{'✅ Pocket Option connecté' if login_ok else '⚠️ Connexion PO échouée — vérifier les credentials'}\n\n"
-            f"Mode : `{settings.TRADE_MODE.upper()}`\n"
-            f"Montant initial : `${settings.TRADE_AMOUNT}`\n\n"
-            "Tape /start pour ouvrir le menu de contrôle."
-        )
-        await bot.notify(startup_msg)
+        try:
+            logger.info("Démarrage du navigateur Playwright...")
+            await trader.start()
+            logger.info("Connexion à Pocket Option...")
+            login_ok = await trader.login()
+            startup_msg = (
+                "🤖 *Bot démarré!*\n\n"
+                f"{'✅ Pocket Option connecté' if login_ok else '⚠️ Connexion PO échouée — trading désactivé'}\n\n"
+                f"Mode : `{settings.TRADE_MODE.upper()}`\n"
+                f"Montant initial : `${settings.TRADE_AMOUNT}`\n\n"
+                "Tape /start pour ouvrir le menu de contrôle."
+            )
+            await bot.notify(startup_msg)
+        except Exception as e:
+            logger.error(f"init_trader error: {e}")
+            await bot.notify(f"⚠️ Erreur init trader: `{str(e)[:100]}`")
 
     # ── Boucle health check ───────────────────────────────────────────────────
     async def health_check_loop():
