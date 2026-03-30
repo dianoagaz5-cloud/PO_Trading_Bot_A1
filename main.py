@@ -45,45 +45,41 @@ async def main():
     trader = PocketOptionTrader()
     bot    = TradingBot(trader=trader)
 
-    # Lie le callback de notification du trader vers Telegram
     trader.set_notify(bot.notify)
-
-    # Lie le callback de signal vers le bot
     sr.set_callback(bot.process_signal)
-
-    # ── Démarrage navigateur ──────────────────────────────────────────────────
-    logger.info("Démarrage du navigateur Playwright...")
-    await trader.start()
 
     # ── Démarrage Telegram bot ────────────────────────────────────────────────
     logger.info("Connexion au bot Telegram...")
     await bot.run()
 
-    # ── Login Pocket Option ───────────────────────────────────────────────────
-    logger.info("Connexion à Pocket Option...")
-    login_ok = await trader.login()
+    # ── Login PO en arrière-plan (ne bloque plus le démarrage) ───────────────
+    async def init_trader():
+        logger.info("Démarrage du navigateur Playwright...")
+        await trader.start()
+        logger.info("Connexion à Pocket Option...")
+        login_ok = await trader.login()
+        startup_msg = (
+            "🤖 *Bot démarré!*\n\n"
+            f"{'✅ Pocket Option connecté' if login_ok else '⚠️ Connexion PO échouée — vérifier les credentials'}\n\n"
+            f"Mode : `{settings.TRADE_MODE.upper()}`\n"
+            f"Montant initial : `${settings.TRADE_AMOUNT}`\n\n"
+            "Tape /start pour ouvrir le menu de contrôle."
+        )
+        await bot.notify(startup_msg)
 
-    startup_msg = (
-        "🤖 *Bot démarré!*\n\n"
-        f"{'✅ Pocket Option connecté' if login_ok else '⚠️ Connexion PO échouée — vérifier les credentials'}\n\n"
-        f"Mode : `{settings.TRADE_MODE.upper()}`\n"
-        f"Montant initial : `${settings.TRADE_AMOUNT}`\n\n"
-        "Tape /start pour ouvrir le menu de contrôle."
-    )
-    await bot.notify(startup_msg)
-
-    # ── Boucle principale — maintien connexion PO ─────────────────────────────
+    # ── Boucle health check ───────────────────────────────────────────────────
     async def health_check_loop():
-        """Vérifie la session PO toutes les 5 minutes."""
+        await asyncio.sleep(60)   # attendre que le login soit tenté
         while True:
-            await asyncio.sleep(300)  # 5 min
+            await asyncio.sleep(300)
             if not await trader.reconnect_if_needed():
                 logger.warning("Reconnexion PO échouée lors du health check")
 
-    # ── Lancement parallèle ───────────────────────────────────────────────────
+    # ── Lancement parallèle — API démarre immédiatement ──────────────────────
     try:
         await asyncio.gather(
-            run_api_server(),
+            run_api_server(),       # démarre tout de suite → /health répond
+            init_trader(),          # login PO en parallèle
             health_check_loop(),
         )
     except (KeyboardInterrupt, asyncio.CancelledError):
